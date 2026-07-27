@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Circuit Solver</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-blueprint: #0a2540;
+    --bg-panel: #0f2f52;
+    --grid-line: rgba(255,255,255,0.055);
+    --trace: #7dd3fc;
+    --trace-dim: rgba(125,211,252,0.35);
+    --signal: #ffb454;
+    --signal-glow: rgba(255,180,84,0.35);
+    --text-primary: #eaf2fb;
+    --text-muted: #82a0c2;
+    --danger: #ff8a80;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+
+  html, body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg-blueprint);
+    color: var(--text-primary);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  body {
+    position: relative;
+    overflow-x: hidden;
+    padding: 56px 20px 80px;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 34px 34px;
+    animation: drift 40s linear infinite;
+  }
+
+  @keyframes drift {
+    from { background-position: 0 0, 0 0; }
+    to { background-position: 340px 340px, 340px 340px; }
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle at 20% 10%, rgba(125,211,252,0.10), transparent 45%),
+                radial-gradient(circle at 85% 90%, rgba(255,180,84,0.08), transparent 40%);
+  }
+
+  .container {
+    max-width: 640px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    color: var(--trace);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .eyebrow::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--trace);
+    box-shadow: 0 0 8px var(--trace);
+    animation: blink 2s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 34px;
+    font-weight: 700;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+
+  .tagline {
+    color: var(--text-muted);
+    font-size: 14.5px;
+    margin: 0 0 30px;
+    max-width: 48ch;
+    line-height: 1.6;
+  }
+
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid rgba(125,211,252,0.18);
+    border-radius: var(--radius);
+    padding: 26px;
+    margin-bottom: 22px;
+    position: relative;
+    box-shadow: 0 20px 40px -20px rgba(0,0,0,0.5);
+  }
+
+  .panel::before {
+    content: "";
+    position: absolute;
+    top: -1px; left: 14px; right: 14px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--trace-dim), transparent);
+  }
+
+  .dropzone {
+    border: 1.5px dashed rgba(125,211,252,0.4);
+    border-radius: 8px;
+    padding: 26px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+    position: relative;
+  }
+
+  .dropzone.dragover, .dropzone:hover {
+    border-color: var(--trace);
+    background: rgba(125,211,252,0.05);
+  }
+
+  .dropzone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .dropzone-icon {
+    font-size: 26px;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .dropzone-label {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .dropzone-label strong {
+    color: var(--trace);
+  }
+
+  #fileName {
+    margin-top: 10px;
+    font-size: 12.5px;
+    color: var(--signal);
+    min-height: 16px;
+  }
+
+  button.solve-btn {
+    width: 100%;
+    margin-top: 18px;
+    background: var(--trace);
+    color: #04263f;
+    border: none;
+    padding: 13px 20px;
+    border-radius: 8px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 15px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #4aa8c9, 0 8px 16px -6px rgba(125,211,252,0.4);
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+
+  button.solve-btn:hover { filter: brightness(1.05); }
+
+  button.solve-btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 0 0 #4aa8c9;
+  }
+
+  button.solve-btn:focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 3px;
+  }
+
+  #loading {
+    display: none;
+    align-items: center;
+    gap: 14px;
+    margin-top: 20px;
+    padding-top: 18px;
+    border-top: 1px dashed rgba(125,211,252,0.2);
+  }
+
+  #loading.active { display: flex; }
+
+  .wire-loader { flex-shrink: 0; }
+
+  .loading-text { font-size: 13px; color: var(--trace); }
+
+  .loading-text .cursor {
+    display: inline-block;
+    width: 7px;
+    height: 13px;
+    background: var(--trace);
+    margin-left: 3px;
+    animation: blink 0.9s steps(1) infinite;
+    vertical-align: middle;
+  }
+
+  .error {
+    background: rgba(255,138,128,0.08);
+    border: 1px solid rgba(255,138,128,0.4);
+    color: var(--danger);
+    padding: 14px 16px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 13.5px;
+    line-height: 1.6;
+  }
+
+  .preview-img {
+    max-width: 100%;
+    border-radius: 8px;
+    border: 1px solid rgba(125,211,252,0.25);
+    margin-bottom: 22px;
+    display: block;
+  }
+
+  .field-label {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--trace);
+    margin: 22px 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .field-label:first-child { margin-top: 0; }
+
+  .field-label::before {
+    content: "";
+    width: 12px;
+    height: 1px;
+    background: var(--trace-dim);
+  }
+
+  .field-value {
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--text-primary);
+  }
+
+  .answer-box {
+    background: rgba(255,180,84,0.08);
+    border: 1px solid rgba(255,180,84,0.45);
+    color: var(--signal);
+    padding: 16px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 15px;
+    line-height: 1.6;
+    text-shadow: 0 0 18px var(--signal-glow);
+    animation: powerOn 0.6s ease;
+  }
+
+  @keyframes powerOn {
+    0% { opacity: 0; filter: brightness(2.5); }
+    30% { opacity: 1; filter: brightness(0.6); }
+    45% { filter: brightness(2); }
+    100% { opacity: 1; filter: brightness(1); }
+  }
+
+  /* Step cards — structured, textbook-style breakdown */
+  .step-card {
+    display: flex;
+    gap: 14px;
+    padding: 16px 0;
+    border-bottom: 1px dashed rgba(125,211,252,0.15);
+  }
+
+  .step-card:last-child { border-bottom: none; }
+
+  .step-num {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: rgba(125,211,252,0.12);
+    border: 1px solid rgba(125,211,252,0.4);
+    color: var(--trace);
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .step-body { flex: 1; min-width: 0; }
+
+  .step-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 14.5px;
+    margin-bottom: 5px;
+    color: var(--text-primary);
+  }
+
+  .step-explanation {
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  .step-highlights {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .highlight-chip {
+    background: rgba(255,180,84,0.15);
+    border: 1px solid rgba(255,180,84,0.5);
+    color: var(--signal);
+    padding: 5px 11px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  footer {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 11.5px;
+    margin-top: 30px;
+    letter-spacing: 0.03em;
+  }
+
+  .scene {
+    position: fixed;
+    right: 5%;
+    bottom: 8%;
+    width: 90px;
+    height: 90px;
+    perspective: 500px;
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  @media (max-width: 700px) { .scene { display: none; } }
+
+  .resistor {
+    width: 70px;
+    height: 24px;
+    position: relative;
+    margin: 33px 10px;
+    transform-style: preserve-3d;
+    animation: tumble 12s linear infinite, hover 4s ease-in-out infinite;
+  }
+
+  @keyframes tumble {
+    from { transform: rotateY(0deg) rotateX(12deg); }
+    to   { transform: rotateY(360deg) rotateX(12deg); }
+  }
+
+  @keyframes hover {
+    0%, 100% { translate: 0 0; }
+    50% { translate: 0 -10px; }
+  }
+
+  .resistor .body {
+    position: absolute;
+    inset: 0;
+    border-radius: 12px;
+    background: linear-gradient(#e8d2a0, #c9a25f);
+  }
+
+  .resistor .body.back { transform: translateZ(-14px); }
+
+  .resistor .side {
+    position: absolute;
+    width: 28px;
+    height: 24px;
+    top: 0;
+    background: linear-gradient(90deg, #b98f4e, #d9b876);
+    transform-origin: left center;
+    transform: rotateY(90deg) translateX(-14px);
+  }
+
+  .resistor .side.left { left: 0; }
+  .resistor .side.right { left: 66px; transform: rotateY(90deg) translateX(-14px) translateX(52px); }
+
+  .resistor .band {
+    position: absolute;
+    top: -2px;
+    width: 6px;
+    height: 28px;
+    border-radius: 2px;
+  }
+  .resistor .band.b1 { left: 14px; background: #7a4a2a; }
+  .resistor .band.b2 { left: 24px; background: #c0392b; }
+  .resistor .band.b3 { left: 34px; background: #d4a017; }
+  .resistor .band.b4 { left: 50px; background: #caa14a; }
+
+  .resistor .lead {
+    position: absolute;
+    top: 10px;
+    width: 22px;
+    height: 3px;
+    background: #cfd8dc;
+  }
+  .resistor .lead.left { left: -22px; }
+  .resistor .lead.right { right: -22px; }
+</style>
+</head>
+<body>
+
+  <div class="scene">
+    <div class="resistor">
+      <div class="lead left"></div>
+      <div class="lead right"></div>
+      <div class="side left"></div>
+      <div class="side right"></div>
+      <div class="body back"></div>
+      <div class="body"></div>
+      <div class="band b1"></div>
+      <div class="band b2"></div>
+      <div class="band b3"></div>
+      <div class="band b4"></div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="eyebrow">Signal analysis online</div>
+    <h1>Circuit Solver</h1>
+    <p class="tagline">Upload a schematic and a question. The trace gets read, the current gets calculated, the answer gets marked up — like a blueprint fresh off an engineer's desk.</p>
+
+    <div class="panel">
+      <form id="uploadForm" action="/solve" method="POST" enctype="multipart/form-data">
+        <label class="dropzone" id="dropzone">
+          <span class="dropzone-icon">⌁</span>
+          <span class="dropzone-label"><strong>Choose a file</strong> or drag it here — JPG, PNG, WEBP</span>
+          <input type="file" name="image" id="fileInput" accept="image/*" required>
+        </label>
+        <div id="fileName"></div>
+        <button type="submit" class="solve-btn">Trace &amp; Solve →</button>
+      </form>
+
+      <div id="loading">
+        <svg class="wire-loader" width="54" height="40" viewBox="0 0 54 40" fill="none">
+          <path d="M2 20 H14 L20 8 L28 32 L34 20 H52" stroke="#3a5f82" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>
+          <circle r="3.5" fill="#7dd3fc">
+            <animateMotion dur="1.4s" repeatCount="indefinite" path="M2 20 H14 L20 8 L28 32 L34 20 H52" />
+          </circle>
+        </svg>
+        <span class="loading-text">Reading the circuit<span class="cursor"></span></span>
+      </div>
+    </div>
+
+    {% if error %}
+      <div class="error"><strong>⚠ Fault detected —</strong> {{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+      <div class="panel">
+        {% if image_data %}
+          <img class="preview-img" src="{{ image_data }}" alt="Uploaded circuit">
+        {% endif %}
+
+        <div class="field-label">Components</div>
+        <div class="field-value">{{ result.components }}</div>
+
+        <div class="field-label">Question</div>
+        <div class="field-value">{{ result.question }}</div>
+
+        <div class="field-label">Final answer</div>
+        <div class="answer-box">{{ result.final_answer }}</div>
+
+        <div class="field-label">Solution steps</div>
+        {% for step in result.steps %}
+          <div class="step-card">
+            <div class="step-num">{{ loop.index }}</div>
+            <div class="step-body">
+              <div class="step-title">{{ step.title }}</div>
+              <div class="step-explanation">{{ step.explanation }}</div>
+              {% if step.highlights %}
+                <div class="step-highlights">
+                  {% for h in step.highlights %}
+                    <span class="highlight-chip">{{ h }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <footer>AI-generated solutions — verify important results.</footer>
+  </div>
+
+  <script>
+    const form = document.getElementById('uploadForm');
+    const loading = document.getElementById('loading');
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const fileName = document.getElementById('fileName');
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length > 0) {
+        fileName.textContent = '✓ ' + fileInput.files[0].name;
+      }
+    });
+
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+    dropzone.addEventListener('drop', () => dropzone.classList.remove('dragover'));
+
+    form.addEventListener('submit', () => {
+      loading.classList.add('active');
+    });
+  </script>
+</body>
+</html>
