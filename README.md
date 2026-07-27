@@ -1,5 +1,7 @@
 # ⚡ AI Circuit Solver
 
+🔗 **Live demo:** [circuit-solver-xi.vercel.app](https://circuit-solver-xi.vercel.app)
+
 Upload a photo of a circuit diagram with a question, and get a step-by-step AI-generated solution — like a worked textbook answer.
 
 ## How it works
